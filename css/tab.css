@@ -1,0 +1,33 @@
+
+.tab-menu{
+	border-bottom: 1px solid #6a8de8;
+}
+.tab-menu li {
+  position:relative;
+  background-color: #fff;
+  color:#bcbcbc;
+  display: inline-block;
+  padding: 5px 10px;
+  opacity: 0.8;
+  cursor:pointer;
+  z-index:0;
+}
+
+
+.tab-content>div {
+  background-color: #fff;
+  box-sizing:border-box;
+  width: 100%;
+  padding: 10px;   
+}
+
+.line {
+  position:absolute;
+  width: 0;
+  height: 2px;
+  background-color: #6a8de8;
+  bottom: 0;
+  left: 0;
+}
+
+

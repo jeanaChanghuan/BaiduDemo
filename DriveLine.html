@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+	<meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+	<link  rel="stylesheet" href="css/drive.css"/>
+	<link rel="stylesheet" href="css/reset.min.css">
+    <link rel="stylesheet" href="css/tab.css">
+    <link href="http://api.map.baidu.com/library/TrafficControl/1.4/src/TrafficControl_min.css" rel="stylesheet" type="text/css" />
+	<script type="text/javascript" src="http://api.map.baidu.com/api?v=2.0&ak=eYf9sA6yVTFHlh9ytU4a0EYY"></script>
+	<script type="text/javascript" src="http://api.map.baidu.com/library/TrafficControl/1.4/src/TrafficControl_min.js"></script>
+	<script type="text/javascript" src="http://lbsyun.baidu.com/custom/stylelist.js"></script>
+	<script type="text/javascript" src="js/jquery-1.11.1.min.js"></script>
+	<script type="text/javascript"  src="js/driveTab.js"></script>
+	<script type="text/javascript"  src="js/LuShu_min.js"></script>
+	<title>DriveLine</title>
+</head>
+<body>
+	<div id="allmap"></div>
+	<div id="r-result_MapStyle">
+		<div class="optionpanel">
+			<select id="stylelist" onchange="changeMapStyle(this.value)"></select>
+		</div>
+	</div>   
+	<div class="tab-wrapper">
+		<ul class="tab-menu">
+		    <li class="active"><div class="nav_tab"><img id="car" src="images/car_blue.png" class="navTab_Img"/></div></li>
+		    <li><div class="nav_tab"><img id="walk" src="images/walk_gray.png" class="navTab_Img"/></div></li>
+		    <li><div class="nav_tab"><img id="bus" src="images/bus_gray.png" class="navTab_Img"/></div></li>
+	 	 </ul>
+	 	<div class="tab-content">
+			<div class="search">
+				<div class="form_search">
+					<div class="form_nav" >
+						<img alt="" src="images/start.png" class="form_img"/>
+						<input type="text" class="form_input" id="startId"  ></input>
+					</div>
+					<div class="form_nav">
+						<img alt="" src="images/end.png" class="form_img"/>
+						<input type="text" class="form_input" id="endId" ></input>
+					</div>
+					<div class="form_nav">
+						<img alt="" src="images/pass.png" class="form_img"/>
+						<input type="text" class="form_input"  id="passId" placeholder="在地图上选取途经点"></input>
+					</div>
+					<div id="searchResultPanel" class="searchPanel" ></div>
+					<div class="form_trans">
+						<img title="切换起终点" src="images/trans.png" class="trans_img" onclick="TransPoint_ClickHandler()"/>
+					</div>
+				</div>
+				<div id="r-result"></div>
+			</div>
+			<div class="search">
+				<div class="form_search">
+					<div class="form_nav" >
+						<img alt="" src="images/start.png" class="form_img"/>
+						<input type="text" class="form_input" id="walkStartId"  ></input>
+					</div>
+					<div class="form_nav">
+						<img alt="" src="images/end.png" class="form_img"/>
+						<input type="text" class="form_input" id="walkEndId" ></input>
+					</div>
+					<div id="WalkSearchResultPanel" class="searchPanel" ></div>
+					<div class="form_trans">
+						<img title="切换起终点" src="images/trans.png" class="trans_img" onclick="TransPoint_WaklClickHandler()"/>
+					</div>
+				</div>
+				<div id="r-result_walk"></div>
+			</div>
+			<div class="search">
+				<div class="form_search">
+					<div class="form_nav" >
+						<img alt="" src="images/start.png" class="form_img"/>
+						<input type="text" class="form_input" id="busStartId"  ></input>
+					</div>
+					<div class="form_nav">
+						<img alt="" src="images/end.png" class="form_img"/>
+						<input type="text" class="form_input" id="busEndId" ></input>
+					</div>
+					<div id="busSearchResultPanel" class="searchPanel" ></div>
+					<div class="form_trans">
+						<img title="切换起终点" src="images/trans.png" class="trans_img" onclick="TransPoint_BusClickHandler()"/>
+					</div>
+				</div>
+				<div id="r-result_bus"></div>
+			</div>
+		</div>
+	</div>
+	<div class="form_submit">
+		<img title="查询" src="images/search.png" class="search_img" onclick="Search_drawDriveLine()"/>
+	</div>
+</body>
+</html>
+<script type="text/javascript">
+	/**tab页签点击图片替换图片**/
+	var tabState="car";
+	$(".nav_tab").click(function(e){
+			   map.clearOverlays(); 
+	           var imgId=e.target.id;
+	           tabState=imgId;
+	           var imgSrc=$("#"+imgId).attr("src");
+	           var imgArr=imgSrc.split("_");
+	           if(imgArr[1]=="gray.png"){
+	               $("#"+imgId).attr("src",imgArr[0]+"_blue.png");
+	               if(imgArr[0]=="images/car"){
+	               		map.addEventListener("click", passAddress_ClickHandler);
+	               		$("#walk").attr("src","images/walk_gray.png");
+           				$("#bus").attr("src","images/bus_gray.png");
+	               }else if(imgArr[0]=="images/walk"){
+	                  	map.removeEventListener("click", passAddress_ClickHandler);
+	               		$("#car").attr("src","images/car_gray.png");
+           				$("#bus").attr("src","images/bus_gray.png");
+	               }else if(imgArr[0]=="images/bus"){
+               			map.removeEventListener("click", passAddress_ClickHandler);
+	               		$("#car").attr("src","images/car_gray.png");
+           				$("#walk").attr("src","images/walk_gray.png");
+	               }
+	           }
+	  });
+
+
+	var startPoint;  /**驾车路线起始点**/
+	var endPoint;    /**驾车路线终点**/
+	var passArr=[];  /**经过地集合**/
+	var startPoint_walk;
+	var endPoint_walk;
+	var startPoint_bus;
+	var endPoint_bus;
+	// 百度地图API功能
+	var map = new BMap.Map("allmap");
+	map.enableScrollWheelZoom();    //启用滚轮放大缩小，默认禁用
+    map.enableContinuousZoom();    //启用地图惯性拖拽，默认禁用
+    map.addControl(new BMap.NavigationControl());  //添加默认缩放平移控件
+    map.addControl(new BMap.OverviewMapControl()); //添加默认缩略地图控件
+    map.addControl(new BMap.MapTypeControl()); //添加地图类型切换控件
+    map.addControl(new BMap.OverviewMapControl({ isOpen: false, anchor: BMAP_ANCHOR_BOTTOM_RIGHT }));   //右下角，打开
+    var localSearch = new BMap.LocalSearch(map);
+	var point = new BMap.Point(116.331398,39.897445);
+	map.centerAndZoom(point,12);
+	map.addEventListener("click", passAddress_ClickHandler); /**驾车路线经过点取值**/
+	var ctrl = new BMapLib.TrafficControl({
+		showPanel: true //是否显示路况提示面板
+	});      
+	map.addControl(ctrl);
+	ctrl.setAnchor(BMAP_ANCHOR_BOTTOM_RIGHT);
+	
+	var sel = document.getElementById('stylelist');
+	for(var key in mapstyles){
+		var style = mapstyles[key];
+		var item = new  Option(style.title,key);
+		sel.options.add(item);
+	}
+	sel.value = 'normal';
+	function changeMapStyle(style){
+		map.setMapStyle({style:style});
+		$('#desc').html(mapstyles[style].desc);
+	}
+//    if (navigator.geolocation)
+//     {
+//    		 navigator.geolocation.getCurrentPosition(showPosition,showError);
+//     }
+//     else
+//     {
+//     	alert("获取不到位置");
+//     }
+//   function showPosition(position)
+//   {
+// 	  alert("Latitude: " + position.coords.latitude + 
+// 	  "<br />Longitude: " + position.coords.longitude);	
+//   }
+//   function showError(e){
+//   	 switch(error.code) { 
+// 	    case error.PERMISSION_DENIED: 
+// 	      alert("定位失败,用户拒绝请求地理定位"); 
+// 	      break; 
+// 	    case error.POSITION_UNAVAILABLE: 
+// 	      alert("定位失败,位置信息是不可用"); 
+// 	      break; 
+// 	    case error.TIMEOUT: 
+// 	      alert("定位失败,请求获取用户位置超时"); 
+// 	      break; 
+// 	    case error.UNKNOWN_ERROR: 
+// 	      alert("定位失败,定位系统失效"); 
+// 	      break; 
+// 	  } 
+//   }
+	/**驾车路线起始点样式**/
+	var startIconImg = new BMap.Icon("images/bus_start.png",
+					new BMap.Size(28, 32),{
+					anchor : new BMap.Size(7, 34)
+				});
+	/**驾车路线终点样式**/
+	var endIconImg=new BMap.Icon("images/bus_end.png",
+					new BMap.Size(28, 32),{
+					anchor : new BMap.Size(7, 34)
+				});
+	
+	/*******************/
+	/**驾车起始点：搜索框关键字提示输入并在地图上画点   与终点共用同一个结果显示块**/
+	var acStart = new BMap.Autocomplete(    //建立一个自动完成的对象
+		{"input" : "startId"
+		,"location" : map
+	});
+	acStart.addEventListener("onconfirm", function(e) {    //鼠标点击下拉列表后的事件
+	var _value = e.item.value;
+		myValue = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
+		G("searchResultPanel").innerHTML ="onconfirm<br />index = " + e.item.index + "<br />myValue = " + myValue;
+		setPlace("start");
+	});
+	/**驾车终点：搜索框关键字提示输入并在地图上画点    与起始点共用同一个结果显示块**/
+	var acEnd = new BMap.Autocomplete(    //建立一个自动完成的对象
+		{"input" : "endId"
+		,"location" : map
+	});
+    function G(id) {
+		return document.getElementById(id);
+	}
+	var myValue;
+	acEnd.addEventListener("onconfirm", function(e) {    //鼠标点击下拉列表后的事件
+	var _value = e.item.value;
+		myValue = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
+		G("searchResultPanel").innerHTML ="onconfirm<br />index = " + e.item.index + "<br />myValue = " + myValue;
+		
+		setPlace("end");
+	});
+	
+	/**驾车路线：起始点与终止点定位并绘制在地图上**/
+	function setPlace(state){
+		function myFun(){
+			var pp = local.getResults().getPoi(0).point;    //获取第一个智能搜索的结果
+			map.centerAndZoom(pp,12);
+			var iconImg;
+			if(state=="start"){
+				iconImg=startIconImg;
+				startPoint=pp;
+			}else{
+				iconImg=endIconImg;
+				endPoint=pp;
+			}
+	      var localMarker = new BMap.Marker(pp,
+				        {icon : iconImg});  // 创建标注，为要查询的地方对应的经纬度
+			map.addOverlay(localMarker);    //添加标注
+		}
+		var local = new BMap.LocalSearch(map, { //智能搜索
+		  onSearchComplete: myFun
+		});
+		local.search(myValue);
+	}
+	/**切换起终点:交换起终点的位置和文本框内容**/
+	function TransPoint_ClickHandler(){
+		var preStartAddr=$("#startId").val();
+		var preEndAddr=$("#endId").val();
+		$("#startId").val(preEndAddr);
+		$("#endId").val(preStartAddr);
+		map.clearOverlays(); 
+		var startMarker = new BMap.Marker(endPoint,
+				        {icon : startIconImg});  // 创建标注，为要查询的地方对应的经纬度
+		map.addOverlay(startMarker);    //添加标注
+		var endMarker = new BMap.Marker(startPoint,
+				        {icon : endIconImg});  // 创建标注，为要查询的地方对应的经纬度
+		map.addOverlay(endMarker);    //添加标
+		passValue=""; 
+		passArr=[];
+		$("#passId").val("");
+	}
+	/**驾车路线经过点：点击地图将点逆解析为地址并显示在文本框中**/
+	var geoc = new BMap.Geocoder();   
+	var passValue=""; 
+	function passAddress_ClickHandler(e){
+		var pt = e.point;
+		geoc.getLocation(pt, function(rs){
+			var addComp = rs.addressComponents;
+			var poiAddr=rs.surroundingPois[0].title;
+			var passName=addComp.district;
+            if(poiAddr != null && addComp.streetNumber !==null){
+				passName+=poiAddr;
+			}else {
+				alert("地址无法匹配，请重新选取地址");
+			}
+			passArr.push(passName);
+			passValue+=passName+";";
+			$("#passId").val(passValue);
+		}); 
+	}
+	/**搜索驾车路线：将驾车路线绘制在地图上，并显示路线文本**/
+	function Search_drawDriveLine(){
+		map.clearOverlays(); 
+		if(tabState=="car"){
+			var driving = new BMap.DrivingRoute(map, {renderOptions:{map: map,panel: "r-result", enableDragging : true,trueautoViewport: true}});
+			driving.search(startPoint, endPoint,{waypoints:passArr});//waypoints表示途经点
+			passValue=""; 
+			passArr=[];
+			driving.setSearchCompleteCallback(function(res){
+				if (driving.getStatus() == BMAP_STATUS_SUCCESS) {
+	                var plan = res.getPlan(0);
+	                var arrPois =[];
+	                for(var j=0;j<plan.getNumRoutes();j++){
+	                    var route = plan.getRoute(j);
+	                    arrPois= arrPois.concat(route.getPath());
+	                }
+	                map.setViewport(arrPois);
+	                lushu = new BMapLib.LuShu(map,arrPois,{
+		                defaultContent:"",//"从天安门到百度大厦"
+		                autoView:true,//是否开启自动视野调整，如果开启那么路书在运动过程中会根据视野自动调整
+		                icon  : new BMap.Icon('images/car.png', new BMap.Size(52,26),{anchor : new BMap.Size(27, 13)}),
+		                speed: 2500,
+		                enableRotation:true,//是否设置marker随着道路的走向进行旋转
+		                landmarkPois: []
+	                });   
+	                lushu.start();       
+            	}
+			});
+		}else if(tabState=="walk"){
+			var walking = new BMap.WalkingRoute(map, {renderOptions: {map: map, panel: "r-result_walk", autoViewport: true}});
+			walking.search(startPoint_walk, endPoint_walk);
+			WalkRun();
+		}else if(tabState == "bus"){
+			var transit = new BMap.TransitRoute(map, {
+				renderOptions: {map: map, panel: "r-result_bus"}
+			});
+			transit.search(startPoint_bus, endPoint_bus);
+			}
+	}
+	/**步行起始点：搜索框关键字提示输入并在地图上画点   与终点共用同一个结果显示块**/
+	var acWalkStart = new BMap.Autocomplete(    //建立一个自动完成的对象
+		{"input" : "walkStartId"
+		,"location" : map
+	});
+	acWalkStart.addEventListener("onconfirm", function(e) {    //鼠标点击下拉列表后的事件
+	var _value = e.item.value;
+		myWalkValue = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
+		G("WalkSearchResultPanel").innerHTML ="onconfirm<br />index = " + e.item.index + "<br />myValue = " + myWalkValue;
+		setWalkPlace("start");
+	});
+	/**步行终点：搜索框关键字提示输入并在地图上画点    与起始点共用同一个结果显示块**/
+	var acWalkEnd = new BMap.Autocomplete(    //建立一个自动完成的对象
+		{"input" : "walkEndId"
+		,"location" : map
+	});
+    function G(id) {
+		return document.getElementById(id);
+	}
+	var myWalkValue;
+	acWalkEnd.addEventListener("onconfirm", function(e) {    //鼠标点击下拉列表后的事件
+	var _value = e.item.value;
+		myWalkValue = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
+		G("WalkSearchResultPanel").innerHTML ="onconfirm<br />index = " + e.item.index + "<br />myValue = " + myWalkValue;
+		
+		setWalkPlace("end");
+	});
+	
+	/**步行路线：起始点与终止点定位并绘制在地图上**/
+	function setWalkPlace(state){
+		function myFun(){
+			var pp = local.getResults().getPoi(0).point;    //获取第一个智能搜索的结果
+			map.centerAndZoom(pp,12);
+			var iconImg;
+			if(state=="start"){
+				iconImg=startIconImg;
+ 				startPoint_walk=pp;
+			}else{
+				iconImg=endIconImg;
+				endPoint_walk=pp;
+			}
+	      var localMarker = new BMap.Marker(pp,
+				        {icon : iconImg});  // 创建标注，为要查询的地方对应的经纬度
+			map.addOverlay(localMarker);    //添加标注
+		}
+		var local = new BMap.LocalSearch(map, { //智能搜索
+		  onSearchComplete: myFun
+		});
+		local.search(myWalkValue);
+	}
+	/**步行动画人物图标**/
+	var walkIcon = new BMap.Icon("images/Mario.png", new BMap.Size(32, 70), {    //小车图片
+		imageOffset: new BMap.Size(0, 0)    //图片的偏移量。为了是图片底部中心对准坐标点。
+	  });
+    /**步行动画绘制**/
+	function WalkRun(){
+		var driving = new BMap.WalkingRoute(map);    //驾车实例
+	    driving.search(startPoint_walk, endPoint_walk);
+		driving.setSearchCompleteCallback(function(){
+			var pts = driving.getResults().getPlan(0).getRoute(0).getPath();    //通过驾车实例，获得一系列点的数组
+			var paths = pts.length;    //获得有几个点
+			var carMk = new BMap.Marker(pts[0],{icon:walkIcon});
+			map.addOverlay(carMk);
+			i=0;
+			function resetMkPoint(i){
+				carMk.setPosition(pts[i]);
+				if(i < paths){
+					setTimeout(function(){
+						i++;
+						resetMkPoint(i);
+					},100);
+				}
+			}
+			setTimeout(function(){
+				resetMkPoint(5);
+			},100);
+
+		});
+	}
+
+	/**公交起始点：搜索框关键字提示输入并在地图上画点   与终点共用同一个结果显示块**/
+	var acBusStart = new BMap.Autocomplete(    //建立一个自动完成的对象
+		{"input" : "busStartId"
+		,"location" : map
+	});
+	acBusStart.addEventListener("onconfirm", function(e) {    //鼠标点击下拉列表后的事件
+		var _value = e.item.value;
+		myBusValue = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
+		G("WalkSearchResultPanel").innerHTML ="onconfirm<br />index = " + e.item.index + "<br />myValue = " + myBusValue;
+		setBusPlace("start");
+	});
+	/**公交终点：搜索框关键字提示输入并在地图上画点    与起始点共用同一个结果显示块**/
+	var acBusEnd = new BMap.Autocomplete(    //建立一个自动完成的对象
+		{"input" : "busEndId"
+		,"location" : map
+	});
+    function G(id) {
+		return document.getElementById(id);
+	}
+	var myBusValue;
+	acBusEnd.addEventListener("onconfirm", function(e) {    //鼠标点击下拉列表后的事件
+	var _value = e.item.value;
+		myBusValue = _value.province +  _value.city +  _value.district +  _value.street +  _value.business;
+		G("WalkSearchResultPanel").innerHTML ="onconfirm<br />index = " + e.item.index + "<br />myValue = " + myBusValue;
+		
+		setBusPlace("end");
+	});
+	
+	/**公交路线：起始点与终止点定位并绘制在地图上**/
+	function setBusPlace(state){
+		function myFun(){
+			var pp = local.getResults().getPoi(0).point;    //获取第一个智能搜索的结果
+			map.centerAndZoom(pp,12);
+			var iconImg;
+			if(state=="start"){
+				iconImg=startIconImg;
+ 				startPoint_bus=pp;
+			}else{
+				iconImg=endIconImg;
+				endPoint_bus=pp;
+			}
+	      var localMarker = new BMap.Marker(pp,
+				        {icon : iconImg});  // 创建标注，为要查询的地方对应的经纬度
+			map.addOverlay(localMarker);    //添加标注
+		}
+		var local = new BMap.LocalSearch(map, { //智能搜索
+		  onSearchComplete: myFun
+		});
+		local.search(myBusValue);
+	}
+</script>
